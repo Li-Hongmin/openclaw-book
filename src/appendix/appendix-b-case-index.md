@@ -1,4 +1,4 @@
-# 附录B：完整案例索引
+# 🗂️ 附录B：完整案例索引
 
 本书所有案例均来自 [awesome-openclaw-usecases](https://github.com/hesamsheikh/awesome-openclaw-usecases) 社区仓库。以下是完整的案例索引表，包含案例名称、来源链接和本书引用章节。
 
