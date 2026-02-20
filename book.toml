@@ -11,3 +11,5 @@ build-dir = "book"
 default-theme = "light"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/Li-Hongmin/openclaw-book"
+additional-css = ["src/custom.css"]
+additional-js = ["src/custom.js"]
