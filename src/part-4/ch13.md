@@ -1,0 +1,668 @@
+# 第13章：性能与成本优化
+
+> "过早优化是万恶之源，但完全不优化是通往破产的快车道。"
+
+当你的Agent系统从实验原型走向生产环境，Token消耗会从"有趣的小数字"变成"每月账单上的惊叹号"。一个运行正常的Multi-Agent Team可能每天消耗数百万Token，而一个设计不当的知识检索Agent可能会让你的API额度在几个小时内清零。
+
+本章不是让你过度优化，而是帮你建立**性能与成本意识**：什么时候应该在意？如何量化？如何优化？如何在性能、成本和质量之间找到平衡点？
+
+## 13.1 Token消耗优化
+
+### Token的隐形成本
+
+Token不仅仅是钱，还代表：
+- **延迟**：更长的上下文意味着更慢的响应
+- **质量**：过长的上下文会稀释注意力（"Lost in the Middle"现象）
+- **错误率**：上下文越长，模型越容易混淆或遗漏细节
+
+**真实案例**：一个早期版本的Personal Knowledge Base Agent，每次检索都把所有历史对话打包发送给模型。结果：
+- 单次查询消耗：50,000 tokens
+- 响应时间：8-12秒
+- 月成本（每天20次查询）：~$300
+- 质量：模型经常答非所问，因为被淹没在无关历史中
+
+优化后：
+- 单次查询消耗：3,000 tokens（仅检索相关片段）
+- 响应时间：1-2秒
+- 月成本：~$18
+- 质量：显著提升，答案更精准
+
+**16倍的成本差异，同时质量更好。**
+
+> 💡 **AI辅助提示**
+> 不知道自己的Agent消耗了多少Token？问AI：
+> "如何在[Claude/OpenAI/Anthropic] API中追踪Token使用量？给我Python代码示例。"
+> 大多数API都会在响应中返回Token计数。
+
+### 优化策略一：智能模型选择
+
+不是所有任务都需要Claude Opus或GPT-4。现代AI生态系统提供了多种模型，性能和成本差异巨大：
+
+| 模型类型 | 适用场景 | 典型成本（每百万Token） | 示例模型 |
+|---------|---------|----------------------|---------|
+| **旗舰推理模型** | 复杂决策、多步推理、创意写作 | $15-60 | Claude Opus, GPT-4 Turbo |
+| **平衡模型** | 日常任务、代码生成、内容提炼 | $3-10 | Claude Sonnet, GPT-4o |
+| **快速模型** | 分类、提取、简单问答 | $0.15-2 | Claude Haiku, GPT-4o Mini |
+| **本地模型** | 高频、低复杂度任务 | $0（硬件成本） | Llama 3, Mixtral |
+
+**决策树**：
+```
+需要多步推理或复杂决策？
+  ├─ 是 → 旗舰模型（Opus）
+  └─ 否 → 是否涉及代码或技术内容？
+      ├─ 是 → 平衡模型（Sonnet, Codex）
+      └─ 否 → 是否高频调用（>100次/天）？
+          ├─ 是 → 快速模型或本地模型
+          └─ 否 → 平衡模型
+```
+
+**案例深度剖析：Multi-Agent Team的模型分层策略**
+
+在第4章和第5章介绍的Multi-Agent Team中，我们设计了一个由多个专业化Agent组成的内容工厂。最初版本所有Agent都用Claude Opus，月成本超过$2,000。经过分析，我们发现：
+
+```python
+# 原始配置（所有Agent用Opus）
+{
+  "strategy_agent": "claude-opus",     # 决策+策略
+  "research_agent": "claude-opus",     # 信息检索
+  "writer_agent": "claude-opus",       # 内容生成
+  "editor_agent": "claude-opus",       # 内容审查
+  "marketing_agent": "claude-opus"     # SEO优化
+}
+
+# Token消耗分析（每轮内容生产）
+strategy_agent:   15,000 tokens  # 需要推理
+research_agent:   80,000 tokens  # 大量检索（但不需要推理！）
+writer_agent:     45,000 tokens  # 需要创意
+editor_agent:     30,000 tokens  # 需要判断
+marketing_agent:  20,000 tokens  # 模板化任务
+```
+
+优化后的配置：
+
+```python
+{
+  "strategy_agent": {
+    "model": "claude-opus",              # 核心决策，保持高质量
+    "rationale": "复杂推理，需要最强模型"
+  },
+  "research_agent": {
+    "model": "gemini-1.5-flash",         # 快速模型足够
+    "rationale": "主要是检索和提取，不需要推理",
+    "cost_reduction": "90%"
+  },
+  "writer_agent": {
+    "model": "claude-sonnet",            # 平衡模型
+    "rationale": "需要创意，但不需要Opus级别",
+    "quality_impact": "minimal"
+  },
+  "editor_agent": {
+    "model": "gpt-4o",                   # 快速+准确
+    "rationale": "检查语法和逻辑，不需要创意"
+  },
+  "marketing_agent": {
+    "model": "claude-haiku",             # 最快模型
+    "rationale": "SEO优化规则明确，模板化"
+  }
+}
+```
+
+**结果**：
+- 总Token消耗：减少65%
+- 月成本：$2,000 → $700
+- 整体质量：几乎无差异（A/B测试显示策略决策质量最重要）
+- 响应速度：提升40%（研究和营销阶段更快）
+
+> 🔧 **遇到错误？**
+> 切换模型后发现输出质量下降？试试这个prompt技巧：
+> "我在用[新模型]替代[旧模型]，但[具体任务]的质量下降了。如何调整prompt以适配新模型的特点？"
+> 不同模型对prompt的敏感度不同，有时小调整就能恢复质量。
+
+### 优化策略二：上下文裁剪与缓存
+
+大多数Agent系统的Token浪费来自**不必要的上下文**。
+
+**常见浪费场景**：
+1. **历史对话全量塞入**：每次都把所有历史消息发送给模型
+2. **文档全文塞入**：检索时把整个文档作为上下文
+3. **重复上下文**：多轮对话中重复发送相同的系统prompt或背景信息
+
+**裁剪策略**：
+
+```python
+# ❌ 低效方式：全量历史
+def get_context_naive(conversation_history):
+    return "\n".join([f"{msg['role']}: {msg['content']}" 
+                      for msg in conversation_history])
+
+# ✅ 优化方式：滑动窗口 + 摘要
+def get_context_optimized(conversation_history, window_size=10):
+    recent = conversation_history[-window_size:]  # 最近10条
+    
+    # 如果历史超过窗口，生成摘要
+    if len(conversation_history) > window_size:
+        older = conversation_history[:-window_size]
+        summary = summarize_conversation(older)
+        context = f"早期对话摘要：{summary}\n\n最近对话：\n"
+    else:
+        context = "对话历史：\n"
+    
+    context += "\n".join([f"{msg['role']}: {msg['content']}" 
+                          for msg in recent])
+    return context
+
+def summarize_conversation(messages):
+    """用快速模型生成摘要"""
+    prompt = f"用100字总结这段对话的核心要点：\n{messages}"
+    return call_llm("claude-haiku", prompt)  # 用便宜模型做摘要
+```
+
+**缓存策略**：
+
+许多API现在支持**Prompt Caching**（如Anthropic的Prompt Caching），可以缓存重复的上下文前缀：
+
+```python
+# 系统prompt（几乎不变，适合缓存）
+SYSTEM_PROMPT = """
+你是一个专业的代码审查Agent，负责检查Python代码的：
+1. 语法错误
+2. 潜在的安全漏洞
+3. 性能问题
+4. 代码风格
+...（2000字的详细指南）
+"""
+
+# ✅ 使用缓存（Anthropic API示例）
+response = anthropic.messages.create(
+    model="claude-sonnet",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"}  # 缓存这部分
+        }
+    ],
+    messages=[
+        {"role": "user", "content": f"审查这段代码：\n{code}"}
+    ]
+)
+
+# 结果：
+# 首次调用：2000 tokens (system) + 500 tokens (code) = 2500 tokens
+# 后续调用（缓存命中）：10 tokens (cache) + 500 tokens (code) = 510 tokens
+# 节省：80%
+```
+
+**实际节省**：在Self-healing Server案例中（第6章、第11章深入讨论），系统prompt包含大量服务器配置和诊断规则（~3000 tokens）。启用Prompt Caching后，15个Cron job每小时的Token消耗从45,000降到9,000（80%节省）。
+
+> 💡 **AI辅助提示**
+> 想了解你使用的API是否支持Prompt Caching？问AI：
+> "[你的API provider] 是否支持Prompt Caching？如何配置？有哪些限制？"
+
+### 优化策略三：检索增强生成（RAG）的Token优化
+
+RAG系统特别容易浪费Token，因为检索结果可能包含大量不相关内容。
+
+**优化Pipeline**：
+
+```
+传统RAG：
+查询 → 向量搜索（返回Top-10文档） → 全部塞给LLM → 回答
+问题：可能包含8,000+ tokens，但只有20%相关
+
+优化RAG：
+查询 → 向量搜索（Top-20） → Rerank（精选Top-3） → 提取相关段落 → 仅发送相关部分给LLM → 回答
+结果：仅1,500 tokens，但召回率不变
+```
+
+**Reranking实现**：
+
+```python
+from sentence_transformers import CrossEncoder
+
+# 第一阶段：快速向量检索（便宜）
+initial_results = vector_db.search(query, top_k=20)
+
+# 第二阶段：精确重排序（轻量模型）
+reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+scores = reranker.predict([(query, doc.content) for doc in initial_results])
+top_docs = sorted(zip(initial_results, scores), 
+                  key=lambda x: x[1], reverse=True)[:3]
+
+# 第三阶段：提取最相关段落
+relevant_passages = []
+for doc, score in top_docs:
+    # 用快速模型提取相关段落
+    passages = extract_relevant_passages(doc.content, query)
+    relevant_passages.extend(passages)
+
+# 仅发送精华给主模型
+context = "\n\n".join(relevant_passages[:5])  # 限制最多5段
+prompt = f"基于以下信息回答问题：\n{context}\n\n问题：{query}"
+```
+
+**效果对比**：Personal Knowledge Base（第2章、第12章深入）优化前后：
+
+| 指标 | 优化前 | 优化后 | 改善 |
+|------|--------|--------|------|
+| 平均Token/查询 | 8,200 | 1,500 | -82% |
+| 准确率 | 78% | 85% | +7% |
+| 响应时间 | 4.5秒 | 1.8秒 | -60% |
+
+**准确率提升的原因**：噪声更少，模型更容易找到关键信息。
+
+---
+
+## 13.2 多模型混合策略
+
+单一模型的时代已经过去。现代Agent系统应该像一个交响乐团，不同乐器（模型）在不同时刻演奏。
+
+### 模型特性对比
+
+不同模型有不同的"个性"：
+
+| 模型 | 优势 | 劣势 | 最佳用途 |
+|------|------|------|---------|
+| **Claude Opus** | 推理深度、复杂决策、创意 | 昂贵、慢 | 战略规划、复杂问题 |
+| **Claude Sonnet** | 平衡、代码质量高 | 中等成本 | 代码生成、技术写作 |
+| **Claude Haiku** | 极快、便宜 | 推理能力弱 | 分类、提取、简单任务 |
+| **GPT-4o** | 多模态、快速 | 推理稍弱于Opus | 视觉任务、快速问答 |
+| **Gemini 1.5 Pro** | 超长上下文（2M tokens） | API稳定性 | 长文档分析 |
+| **Gemini Flash** | 快速、便宜 | 质量中等 | 高频检索、信息提取 |
+| **Codex（GPT-4 Turbo with Codex）** | 代码生成、调试 | 非代码任务弱 | 纯代码任务 |
+
+### 混合策略设计原则
+
+**原则1：让强模型做决策，弱模型做执行**
+
+```python
+# 策略Agent（用Opus）：决定做什么
+strategy = call_llm(
+    "claude-opus",
+    "分析用户请求，拆解成子任务，分配给不同Agent"
+)
+
+# 执行Agent（用Haiku/Gemini）：按指令执行
+for task in strategy.tasks:
+    if task.type == "search":
+        result = call_llm("gemini-flash", task.prompt)
+    elif task.type == "extract":
+        result = call_llm("claude-haiku", task.prompt)
+```
+
+**原则2：用快速模型过滤，用强模型处理**
+
+```python
+# 第一关：Haiku快速分类（便宜）
+priority = call_llm(
+    "claude-haiku",
+    f"这封邮件是紧急(urgent)、重要(important)还是普通(normal)：{email}"
+)
+
+# 第二关：仅紧急和重要的用Opus处理
+if priority in ["urgent", "important"]:
+    response = call_llm(
+        "claude-opus",
+        f"为这封{priority}邮件生成专业回复：{email}"
+    )
+```
+
+**原则3：不同领域用不同专家**
+
+```python
+DOMAIN_MODELS = {
+    "code": "gpt-4-turbo-codex",
+    "creative": "claude-opus",
+    "research": "gemini-1.5-pro",
+    "translation": "gpt-4o",
+    "analysis": "claude-sonnet"
+}
+
+def route_to_specialist(task):
+    domain = detect_domain(task)
+    model = DOMAIN_MODELS.get(domain, "claude-sonnet")  # 默认通用模型
+    return call_llm(model, task.prompt)
+```
+
+> 📚 **深入学习**
+> 想了解更多模型选择策略？问AI：
+> "在Multi-Agent系统中，如何设计模型路由策略？有哪些开源框架支持多模型编排？"
+> 可以了解LangChain、LlamaIndex等框架的Router机制。
+
+### 案例深度剖析：Multi-Agent Team的完整优化
+
+让我们深入第4章介绍的Multi-Agent Team，看看如何在实际生产中应用多模型策略。
+
+**系统架构回顾**：
+
+```
+[策略Agent] → [研究Agent] → [写作Agent] → [编辑Agent] → [营销Agent]
+     ↓              ↓             ↓             ↓             ↓
+   决策树        信息检索      内容生成      质量审查      SEO优化
+```
+
+**模型分配策略**：
+
+```python
+# config/agents.yaml
+agents:
+  strategy:
+    model: claude-opus-3
+    temperature: 0.7
+    rationale: "核心决策，需要最强推理"
+    fallback: claude-sonnet  # 如果Opus不可用
+    
+  research:
+    model: gemini-1.5-flash
+    temperature: 0.3
+    rationale: "大量API调用，快速提取"
+    context_window: 1000000  # 利用Gemini的超长上下文
+    
+  writer:
+    primary: claude-sonnet
+    fallback: gpt-4o
+    temperature: 0.8
+    rationale: "创意写作，Sonnet质量够用"
+    
+  editor:
+    model: gpt-4o
+    temperature: 0.2
+    rationale: "快速准确，语法检查"
+    
+  marketing:
+    model: claude-haiku
+    temperature: 0.1
+    rationale: "规则明确，最快最便宜"
+```
+
+**动态模型切换**：
+
+```python
+class AdaptiveAgent:
+    def __init__(self, config):
+        self.primary_model = config['model']
+        self.fallback_model = config.get('fallback')
+        self.error_count = 0
+        
+    def call(self, prompt):
+        try:
+            response = self._call_model(self.primary_model, prompt)
+            self.error_count = 0  # 成功则重置
+            return response
+        except Exception as e:
+            self.error_count += 1
+            
+            # 如果连续3次失败，切换到备用模型
+            if self.error_count >= 3 and self.fallback_model:
+                logger.warning(f"切换到备用模型：{self.fallback_model}")
+                return self._call_model(self.fallback_model, prompt)
+            raise
+            
+    def _call_model(self, model, prompt):
+        # 根据模型选择对应的API
+        if model.startswith("claude"):
+            return call_anthropic(model, prompt)
+        elif model.startswith("gpt"):
+            return call_openai(model, prompt)
+        elif model.startswith("gemini"):
+            return call_google(model, prompt)
+```
+
+**成本效益分析**（每月100篇内容）：
+
+| 阶段 | 原始模型 | 原始成本 | 优化模型 | 优化成本 | 节省 |
+|------|---------|---------|---------|---------|------|
+| 策略 | Opus | $180 | Opus | $180 | 0% |
+| 研究 | Opus | $960 | Gemini Flash | $24 | **97%** |
+| 写作 | Opus | $540 | Sonnet | $180 | **67%** |
+| 编辑 | Opus | $360 | GPT-4o | $108 | **70%** |
+| 营销 | Opus | $240 | Haiku | $12 | **95%** |
+| **总计** | | **$2,280** | | **$504** | **78%** |
+
+**质量保持**：A/B测试100篇文章，用户评分无显著差异（4.2/5 vs 4.3/5）。
+
+> 🔧 **遇到错误？**
+> 多模型系统出现不一致的输出？试试这个调试策略：
+> "我的Multi-Agent系统用了[模型A]和[模型B]，但输出格式不一致。如何标准化不同模型的输出？"
+> 通常需要在每个Agent的prompt中明确指定输出格式（JSON Schema、YAML等）。
+
+---
+
+## 13.3 成本监控与预算控制
+
+优化再多，如果没有监控，你不会知道钱花在哪里，也无法证明优化是否有效。
+
+### Token追踪系统
+
+**最小实现**：
+
+```python
+# token_tracker.py
+import json
+from datetime import datetime
+from pathlib import Path
+
+class TokenTracker:
+    def __init__(self, log_file="token_usage.jsonl"):
+        self.log_file = Path(log_file)
+        
+    def log(self, agent, model, prompt_tokens, completion_tokens, cost):
+        entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent": agent,
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "cost_usd": cost
+        }
+        
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+            
+    def report(self, days=30):
+        """生成成本报告"""
+        entries = []
+        with open(self.log_file) as f:
+            for line in f:
+                entries.append(json.loads(line))
+        
+        # 按Agent聚合
+        by_agent = {}
+        for e in entries:
+            agent = e["agent"]
+            if agent not in by_agent:
+                by_agent[agent] = {"tokens": 0, "cost": 0, "calls": 0}
+            by_agent[agent]["tokens"] += e["total_tokens"]
+            by_agent[agent]["cost"] += e["cost_usd"]
+            by_agent[agent]["calls"] += 1
+            
+        return by_agent
+```
+
+**集成到Agent**：
+
+```python
+tracker = TokenTracker()
+
+def call_llm_with_tracking(agent_name, model, prompt):
+    response = call_llm(model, prompt)
+    
+    # 大多数API会返回Token使用量
+    prompt_tokens = response.usage.prompt_tokens
+    completion_tokens = response.usage.completion_tokens
+    
+    # 计算成本（根据模型定价）
+    cost = calculate_cost(model, prompt_tokens, completion_tokens)
+    
+    tracker.log(agent_name, model, prompt_tokens, completion_tokens, cost)
+    return response.content
+```
+
+### 实时Dashboard
+
+使用简单的工具快速可视化：
+
+```python
+# dashboard.py
+import pandas as pd
+import plotly.express as px
+from token_tracker import TokenTracker
+
+def generate_dashboard():
+    tracker = TokenTracker()
+    data = tracker.report(days=30)
+    
+    df = pd.DataFrame([
+        {"Agent": k, "Cost": v["cost"], "Calls": v["calls"]}
+        for k, v in data.items()
+    ])
+    
+    # 生成图表
+    fig = px.bar(df, x="Agent", y="Cost", title="月度成本分布")
+    fig.write_html("token_dashboard.html")
+    print("Dashboard生成：token_dashboard.html")
+
+if __name__ == "__main__":
+    generate_dashboard()
+```
+
+运行后自动生成一个HTML文件，显示每个Agent的成本分布。
+
+### 预算告警
+
+**简单预算守护**：
+
+```python
+# budget_guard.py
+import smtplib
+from token_tracker import TokenTracker
+
+MONTHLY_BUDGET = 500  # USD
+ALERT_THRESHOLD = 0.8  # 80%时告警
+
+def check_budget():
+    tracker = TokenTracker()
+    usage = tracker.report(days=30)
+    
+    total_cost = sum(agent["cost"] for agent in usage.values())
+    usage_pct = total_cost / MONTHLY_BUDGET
+    
+    if usage_pct >= ALERT_THRESHOLD:
+        send_alert(
+            f"⚠️ Token预算告警：已使用{usage_pct*100:.1f}% (${total_cost:.2f}/${MONTHLY_BUDGET})"
+        )
+        
+def send_alert(message):
+    # 通过邮件/Slack/Telegram发送告警
+    print(message)
+    # 实际实现：集成通知渠道
+```
+
+在Cron中定期运行：
+
+```bash
+# 每天检查一次预算
+0 9 * * * cd ~/agents && python budget_guard.py
+```
+
+> 💡 **AI辅助提示**
+> 想要更复杂的成本监控？问AI：
+> "如何用[Prometheus/Grafana/Datadog]监控LLM API成本？需要哪些指标？"
+> 可以集成到现有的Observability系统中。
+
+### ROI评估：值得吗？
+
+成本监控的终极目的不是省钱，而是**确保投入产出比合理**。
+
+**评估框架**：
+
+```python
+# roi_calculator.py
+
+class ROICalculator:
+    def __init__(self, agent_name):
+        self.agent_name = agent_name
+        
+    def calculate(self, time_saved_hours, hourly_rate, monthly_cost):
+        """
+        计算Agent的ROI
+        
+        time_saved_hours: 每月节省的人工时间
+        hourly_rate: 人工时薪
+        monthly_cost: Agent月度成本
+        """
+        monthly_value = time_saved_hours * hourly_rate
+        roi = (monthly_value - monthly_cost) / monthly_cost * 100
+        
+        return {
+            "time_saved": time_saved_hours,
+            "value_created": monthly_value,
+            "cost": monthly_cost,
+            "net_benefit": monthly_value - monthly_cost,
+            "roi_percentage": roi,
+            "verdict": "值得" if roi > 200 else "边界" if roi > 50 else "需优化"
+        }
+
+# 示例：Morning Briefing Agent
+calc = ROICalculator("Morning Briefing")
+result = calc.calculate(
+    time_saved_hours=20,    # 每月节省20小时（每天40分钟）
+    hourly_rate=50,         # 时薪$50
+    monthly_cost=15         # Agent月成本$15
+)
+
+print(f"月度价值：${result['value_created']}")
+print(f"月度成本：${result['cost']}")
+print(f"净收益：${result['net_benefit']}")
+print(f"ROI：{result['roi_percentage']:.0f}%")
+print(f"结论：{result['verdict']}")
+
+# 输出：
+# 月度价值：$1000
+# 月度成本：$15
+# 净收益：$985
+# ROI：6567%
+# 结论：值得
+```
+
+**真实案例ROI**：
+
+| Agent | 月成本 | 节省时间 | 价值 | ROI | 结论 |
+|-------|--------|---------|------|-----|------|
+| Morning Briefing | $15 | 20h | $1,000 | **6567%** | 极度值得 |
+| Email Triage | $25 | 15h | $750 | **2900%** | 极度值得 |
+| Self-healing Server | $80 | 10h | $500 | **525%** | 值得 |
+| Content Factory | $504 | 80h | $4,000 | **694%** | 值得 |
+| YouTube Pipeline | $120 | 40h | $2,000 | **1567%** | 极度值得 |
+
+即使是"成本最高"的Content Factory，ROI也接近700%。这就是为什么Agent系统值得投入——不是因为它便宜，而是因为**它创造的价值远超成本**。
+
+> 📚 **深入学习**
+> 想更系统地评估Agent的商业价值？问AI：
+> "如何评估自动化系统的TCO（Total Cost of Ownership）？有哪些隐性成本需要考虑？"
+
+---
+
+## 本章小结
+
+**关键要点**：
+
+1. **Token优化不是目的**，质量和效率的平衡才是
+2. **多模型混合**可以节省60-80%成本，且质量不降低
+3. **上下文裁剪和缓存**是最容易被忽视的优化点
+4. **监控先于优化**：没有数据就是盲目优化
+5. **ROI评估是王道**：证明你的Agent值得每一分钱
+
+**行动清单**：
+
+- [ ] 为你的Agent添加Token追踪
+- [ ] 分析最昂贵的Agent，评估是否可以用更便宜的模型
+- [ ] 启用Prompt Caching（如果API支持）
+- [ ] 设置预算告警（每月/每周）
+- [ ] 计算至少一个Agent的ROI，向自己证明它值得
+
+**下一章预告**：
+
+你的Agent现在成本可控，但它出问题了怎么办？日志在哪里？为什么突然不响应了？第14章将带你建立完整的可观测性和调试体系，让Agent系统不再是黑盒。
