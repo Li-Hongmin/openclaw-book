@@ -1,0 +1,13 @@
+[book]
+title = "OpenClaw实战：从零构建智能Agent系统"
+authors = ["Hongmin Li"]
+language = "zh"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/Li-Hongmin/openclaw-book"
