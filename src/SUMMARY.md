@@ -32,3 +32,4 @@
 # 附录
 
 - [附录A：快速参考](appendix/appendix-a.md)
+- [附录B：完整案例索引](appendix/appendix-b-case-index.md)
