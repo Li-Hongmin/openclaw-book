@@ -7,10 +7,30 @@
 
 /* Content Width & Typography */
 .content {
-    max-width: 900px !important;
+    max-width: 1100px !important;
     font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 17px;
     line-height: 1.8;
+}
+
+/* Override mdBook default content max-width */
+.content main {
+    max-width: 1100px !important;
+}
+
+/* Make the page content area wider */
+#content {
+    max-width: none !important;
+}
+
+.page-wrapper .page {
+    max-width: none !important;
+}
+
+.page-wrapper .page .content {
+    max-width: 1100px !important;
+    margin: 0 auto;
+    padding: 0 2rem;
 }
 
 /* Paragraph Spacing */
