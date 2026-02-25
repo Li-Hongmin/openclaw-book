@@ -128,7 +128,7 @@ Agent (无凭证) → Webhook → n8n (持有凭证) → 外部API
 # ❌ 危险：凭证硬编码在配置文件
 DOCKER_HOST: tcp://server.example.com:2376
 DOCKER_CERT_PATH: /path/to/certs
-SLACK_BOT_TOKEN: 
+SLACK_BOT_TOKEN:   # ← 示例token，不要使用真实token
 KUBE_CONFIG: /path/to/kubeconfig
 AWS_ACCESS_KEY_ID: AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY: <your-secret-access-key-here>
