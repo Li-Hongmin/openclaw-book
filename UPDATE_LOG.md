@@ -1,5 +1,203 @@
 # OpenClaw实战书籍 - 更新日志
 
+## 2026-02-27 - Skills生态与社区最佳实践更新
+
+### 🟢 New Content（新增内容）
+
+#### 1. ClawHub Skills生态深度介绍（第3章）
+**更新位置**：`part-1/ch03.md` - 3.3节"Skills生态系统"
+
+**新增内容**：
+- ✅ **ClawHub现状**：5,705个社区Skills，Top 10累计150K+安装
+- ✅ **2026年热门Skills排行榜**：
+  - Capability Evolver (35K) - 自动能力发现
+  - Wacli (16K) - WhatsApp CLI
+  - ByteRover (16K) - 文件系统导航
+  - Self-Improving Agent (15K) - 自我优化
+  - ATXP (14K) - 文本处理管道
+  - Gog (14K) - Google服务集成
+  - Agent Browser (11K) - 浏览器增强
+  - Summarize (10K) - 文档摘要
+  - GitHub (10K) - GitHub操作
+  - Sonoscli (10K) - Sonos音响控制
+
+**使用指南**：
+```bash
+clawhub search "github"
+clawhub install github
+clawhub update --all
+```
+
+**社区资源**：
+- ClawHub官网：https://clawhub.com
+- awesome-openclaw-skills：2,868个精选Skills
+- Discord #skills频道
+
+**实战价值**：
+- 帮助读者了解最新最热门的Skills
+- 提供可靠的Skills来源和安装方式
+- 避免从不可信来源安装恶意Skills
+
+---
+
+### 📚 发现的新趋势
+
+#### 2. OpenClaw GitHub Star数突破220K
+- 截至2/27，OpenClaw已成为GitHub上最受欢迎的AI Agent框架之一
+- 社区活跃度持续增长，每周新增Skills数量稳定在50+
+
+#### 3. Discord社区最佳实践（未写入书籍，记录备用）
+来自Discord社区的部署建议：
+- ✅ 禁用DM或仅pairing-only模式（防止垃圾消息）
+- ✅ 限制单guild+单channel（避免跨服务器污染）
+- ✅ 使用require mention模式（避免"always listening"）
+- ✅ 配置严格的allowFrom规则
+
+**参考配置**：
+```json
+{
+  "channels": {
+    "discord": {
+      "allowFrom": ["123456789"],  // 仅允许特定用户
+      "guilds": {
+        "987654321": {  // 仅允许特定服务器
+          "requireMention": true  // 必须@机器人
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## 2026-02-26 - OpenClaw 2026.2.6 功能更新
+
+### 🟢 New Features（新功能）
+
+#### 1. Web UI Token Dashboard（第13章）
+**新增位置**：`part-4/ch13.md` - 13.3节"成本监控与预算控制"
+
+**功能亮点**：
+- ✅ **实时Token追踪**：按 agent、model、session 分组统计
+- ✅ **成本可视化**：自动计算各模型的成本（基于官方定价）
+- ✅ **趋势分析**：显示每日/每周/每月的 Token 消耗趋势
+- ✅ **异常检测**：高亮显示异常高的 Token 消耗会话
+- ✅ **导出报表**：支持导出 CSV/JSON 格式的使用数据
+
+**访问方式**：
+```bash
+openclaw gateway start
+open http://localhost:3000/dashboard/tokens
+```
+
+#### 2. 新增模型支持（第3章）
+**新增位置**：`part-1/ch03.md` - 3.2节"安装与基础配置"
+
+**新支持的模型**：
+- **Anthropic Claude Opus 4.6**：最强推理模型
+- **OpenAI GPT-5.3 Codex**：代码专精模型
+- **xAI Grok**：实时网络数据，新闻分析
+- **Azure Model Router**：智能路由，自动选择最优模型
+- **Voyage AI**：原生 Memory 支持
+
+**使用场景**：
+```json5
+{
+  "agents": {
+    "main": { "model": "anthropic/claude-opus-4-6" },      // 主力Agent
+    "coder": { "model": "openai/gpt-5.3-codex" },          // 代码Agent
+    "news": { "model": "xai/grok" }                        // 新闻Agent
+  }
+}
+```
+
+#### 3. Multi-Agent路由规则详解（第4章）
+**新增位置**：`part-2/ch04.md` - 4.3节"配置OpenClaw Gateway"
+
+**路由优先级（确定性）**：
+```
+1. peer 精确匹配（DM/群组/频道的具体 ID）
+2. parentPeer 匹配（线程继承父消息的 Agent）
+3. guildId + roles 匹配（Discord 角色路由）
+4. guildId 匹配（Discord 服务器级别）
+5. teamId 匹配（Slack 工作区级别）
+6. accountId 匹配（频道账号级别）
+7. channel 匹配（频道类型）
+8. 默认 Agent（agents.list 中设置 default: true 的）
+```
+
+**实战价值**：
+- 清晰理解多Agent系统中的消息路由逻辑
+- 避免路由规则冲突导致的消息丢失
+- 优化多账号、多平台的Agent部署
+
+---
+
+### 🔵 Minor Updates（次要更新）
+
+#### 4. Skills生态更新
+**来源**：OpenClaw官方文档和社区
+
+**发现的新资源**：
+- **ClawHub.com**：官方 Skills 注册表（类似 npm）
+- **awesome-openclaw-skills**：社区精选 Skills 合集
+- **openclawskills.net / .best**：第三方 Skills 目录
+
+**Skills安装方式**：
+```bash
+# 通过ClawHub安装
+clawhub install <skill-slug>
+
+# 更新所有已安装的Skills
+clawhub update --all
+
+# 同步本地Skills到ClawHub
+clawhub sync --all
+```
+
+**暂未更新到书中**（可选补充内容）
+
+---
+
+### 📊 其他技术细节
+
+#### 5. Session压缩优化
+- `sessions_history` 现在会自动压缩 payload，减少上下文溢出
+- 适用场景：长时间运行的Multi-Agent协作
+
+#### 6. Telegram DM主题支持
+- 自动注入 DM topic threadId，支持Telegram的主题功能
+- 提升Telegram多主题对话的体验
+
+#### 7. Security增强
+- Skill/Plugin 代码安全扫描器（自动检测可疑代码）
+- Gateway canvas 和 A2UI 资源现在需要认证访问
+- 配置中的凭据自动脱敏（`config.get` API响应）
+
+---
+
+## 更新建议
+
+### 对读者的影响等级：
+
+| 章节 | 影响等级 | 说明 | 建议操作 |
+|------|---------|------|---------|
+| 第13章 | 🟡 **Medium** | Web UI Token Dashboard（新功能） | **推荐阅读**，改善成本监控 |
+| 第3章 | 🟡 **Medium** | 新增模型支持 | **推荐阅读**，了解最新模型 |
+| 第4章 | 🟢 **Low** | 路由规则详解 | 可选阅读，深入理解Multi-Agent |
+
+### 迁移检查清单：
+
+如果你已经部署了基于本书的Agent系统：
+
+- [ ] **升级到 v2026.2.6**：`npm update -g openclaw`
+- [ ] **启用 Web UI**：访问 `http://localhost:3000/dashboard/tokens` 查看Token使用情况
+- [ ] **检查模型配置**：考虑使用新支持的模型（如 GPT-5.3 Codex 用于代码任务）
+- [ ] **复查路由规则**：如果使用 Multi-Agent，确认路由逻辑符合预期
+
+---
+
 ## 2026-02-25 - OpenClaw 2026.2.23-2.24 重要更新
 
 ### 🔴 Critical Updates（Breaking Changes）
