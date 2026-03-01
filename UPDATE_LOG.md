@@ -363,3 +363,36 @@ openai-codex现在默认使用WebSocket传输（transport: "auto"，SSE作fallba
 #### 5. Agents Routing CLI（2/27 Release）
 新增`openclaw agents bind/unbind`命令，支持account级别的路由管理。
 候选更新位置：`part-2/ch04.md`（Agent配置章节）
+
+## 2026-03-01 - ACP Thread-bound / Agents Routing CLI / Codex WebSocket
+
+> 📅 更新时间：2026-03-01 14:10 JST
+
+**本次将 2/28 遗留的"未写入书籍"内容正式落地：**
+
+### 1. Agents Routing CLI（`part-2/ch04.md`）
+新增「🆕 Agents Routing CLI」小节：
+- `openclaw agents bindings` / `bind` / `unbind` 命令详解
+- 多Bot路由配置实战示例
+- 与旧版手动编辑配置对比表
+
+### 2. ACP Thread-bound Agents（`part-2/ch05-subagent.md`）
+新增「🆕 ACP Thread-bound Agents」章节：
+- 概念解释：ACP Agent 绑定 Discord thread 持续服务
+- `sessions_spawn(runtime="acp", thread=True)` 使用方法
+- vs 普通 Sub-agent 对比表
+- Discord 频道专属编码助手实战示例
+
+### 3. Codex WebSocket-first Transport（`part-4/ch13.md`）
+- 模型表格新增 WebSocket 模式行
+- 新增「🆕 Codex WebSocket-first 传输」小节：
+  - SSE → WebSocket 升级说明
+  - `transport: "auto/websocket/sse"` 配置
+  - 何时需要回退到 SSE 的场景
+
+**最新Release**：2/27（暂无更新版本）
+
+---
+
+**维护者**：精进🪷  
+**最后更新**：2026-03-01 14:10 JST
