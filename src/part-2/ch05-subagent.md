@@ -884,6 +884,87 @@ elif announce.status == "timeout":
 
 ---
 
+## 🆕 ACP Thread-bound Agents（2/27 Release）
+
+> 📅 更新于 2026-03-01
+
+OpenClaw 2/27 版本将 **ACP Agent 提升为一等公民**的线程会话运行时，支持 `acp spawn/send` 分发集成、完整的生命周期控制（启动协调、运行时清理）以及线程消息合并回复。
+
+### 什么是 ACP Thread-bound Agent？
+
+ACP（Agent Control Protocol）是 OpenClaw 支持的一种外部 Coding Agent 运行时（如 Claude Code、Codex、Gemini CLI）。Thread-bound 模式意味着：**一个 ACP Agent 实例绑定到一个特定的 thread（对话线程），持久存活，处理该 thread 内的所有消息**。
+
+```
+用户消息 (Discord thread)
+    ↓
+OpenClaw Gateway
+    ↓ (sessions_spawn runtime="acp", thread=true)
+ACP Agent (Claude Code / Codex)  ← 持久绑定到这个 thread
+    ↓ 回复合并
+用户看到统一的 AI 回复
+```
+
+### 使用方法
+
+**在 Discord thread 中启动持久 ACP Agent**：
+
+```python
+# 在 Discord 中，一个 thread 对应一个持久的编码助手
+sessions_spawn(
+    task="你是这个 Discord thread 的专属编码助手，帮助用户解决 Python 问题",
+    runtime="acp",
+    agentId="claude-code",   # 或 "codex"
+    thread=True,             # 绑定到当前 thread
+    mode="session"           # 持久会话模式
+)
+```
+
+**发送消息到 Thread-bound Agent**：
+
+```python
+# 向已绑定的 ACP Agent 发送消息
+sessions_send(
+    label="my-thread-agent",
+    message="帮我优化这段代码: [代码片段]"
+)
+```
+
+### ACP Thread-bound vs 普通 Sub-agent
+
+| 特性 | 普通 Sub-agent | ACP Thread-bound |
+|------|---------------|-----------------|
+| 运行时 | OpenClaw 内置 | 外部 Coding Agent |
+| 生命周期 | 任务完成即退出 | 绑定 thread，持续存活 |
+| 适用场景 | 后台批处理任务 | 交互式编码协作 |
+| 消息合并 | 独立回复 | 同 thread 合并回复 |
+| 模型选择 | claude/codex/gemini | 取决于 acp.agentId |
+
+### 实战：Discord 频道专属编码助手
+
+```python
+# 用户在 Discord 创建新 thread 时，自动启动一个持久编码助手
+# 在 AGENTS.md 或 heartbeat 中配置触发逻辑：
+
+sessions_spawn(
+    label="discord-coding-thread-{thread_id}",
+    task="""
+    你是这个 Discord 编码讨论频道的专属助手。
+    - 回答代码问题
+    - 提供代码审查
+    - 解释技术概念
+    在这个 thread 内持续服务，直到用户关闭。
+    """,
+    runtime="acp",
+    agentId="claude-code",
+    thread=True,
+    mode="session"
+)
+```
+
+> 💡 **使用场景**：团队在 Discord 创建"编码讨论 thread"，每个 thread 自动绑定一个 Claude Code 助手，持续协作而不丢失上下文。
+
+---
+
 ## 📚 总结
 
 **Sub-agent模式的适用场景**：
