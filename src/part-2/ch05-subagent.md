@@ -1,6 +1,6 @@
 # 🤖 第5.5章：Sub-agent模式深度解析（2026新功能）
 
-> 📅 更新于 2/24  
+> 📅 更新于 3/4  
 > ⭐ OpenClaw 2026.2+ 原生支持
 
 ---
@@ -83,10 +83,11 @@ sessions_spawn(
 sessions_spawn(
     task="任务描述（清晰、具体）",          # 必填
     label="subagent-label",               # 可选，用于识别子Agent
+    runtime="subagent",                   # ✅ 推荐显式写出（避免与ACP混淆）
     model="openai/gpt-4o-mini",           # 可选，覆盖默认模型
     thinking="low",                       # 可选，覆盖思考级别
-    runTimeoutSeconds=900,                # 可选，超时时间（秒）
-    thread=False,                         # 可选，是否绑定Discord线程
+    runTimeoutSeconds=900,                 # 可选，超时时间（秒）
+    thread=False,                          # 可选，是否绑定Discord线程
     mode="run",                           # "run"一次性 | "session"持久会话
     cleanup="keep"                        # "keep"保留 | "delete"完成后删除
 )
